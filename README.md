@@ -7,4 +7,4 @@ There are three sets of scripts in this repository:
 3. Python scripts to create AMPL data file based on the virtual network environment setup
 4. Python script to convert expanded AMPL output to lp file
 5. Shell scripts to automate experiments, including run AMPL, CPLEX and creating logs. 
-6. Matlab to plot results
+6. Matlab scripts to plot results
