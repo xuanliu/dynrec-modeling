@@ -52,14 +52,13 @@ def vnet_gen(snet, num_standby, fixed_node):
     snet: the substrate network topology
     num_standby: the number of standby routers requested by a customer
     """
-    #print "choose: ", fixed_node
     node_list = snet.nodes()
-    #print "check", (fixed_node in node_list)
-    #print node_list
+
     
     # minimum number of vnodes in a virtual network has to be three, but do 
     # not need to use all of the virtual nodes excluding the reserved standby 
     # virtual routers.     
+    # In order to make sure every VN has a VR from a common substrate node, first remove the fixed node from the list
     rest_list = copy.deepcopy(node_list)
     rest_list.remove(fixed_node)
     vnode_in_topo = random.randint(3, len(rest_list) - num_standby)
@@ -69,14 +68,15 @@ def vnet_gen(snet, num_standby, fixed_node):
     vnet_nodes = random.sample(set(rest_list), vnode_in_topo)
     vnet_nodes.append(fixed_node)
     rand_vnet = nx.gnp_random_graph(len(vnet_nodes), 0.3)
+    # Avoid to create VNs with isolatd VRs
     check = check_degree(rand_vnet)
     while(check != 1):
         rand_vnet = nx.gnp_random_graph(len(vnet_nodes), 0.3)
         check = check_degree(rand_vnet)
+    # relabel the nodes in the VN
     vnet = conf_vnet(rand_vnet, vnet_nodes)
-    #print vnet.edges(), vnet.selfloop_edges()
+    # remove selfloop edges
     vnet.remove_edges_from(vnet.selfloop_edges())
-    #print vnet.edges()
     return vnet
     
     
