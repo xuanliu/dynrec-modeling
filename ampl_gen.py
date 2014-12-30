@@ -825,49 +825,49 @@ def dryrun(model, ampl_data_file):
     w_m = [0, 0.1, 0.9]
     print_obj_weight(w_m, ampl_data_file)
     
-def run(model, snet_info, ampl_data_file, mat_file):
-    """
-    Program wrapper
-    """
+#def run(model, snet_info, ampl_data_file, mat_file):
+#    """
+#    Program wrapper
+#    """
+#
+#    #snet_info = model.get_snet_info()
+#    print_header(ampl_data_file)
+#    print_index_bound(model, ampl_data_file)
+#    failed = set_info(model, ampl_data_file)
+#    print_num_ports(model, ampl_data_file)
+#    print_vnode_viface(model, ampl_data_file)
+#    bw_matrix = print_bw(model, ampl_data_file)
+#    print_indicator(model, ampl_data_file)
+#    print_delta(model, ampl_data_file)
+#    print_limit(model, ampl_data_file)
+#    print_e(model, ampl_data_file)
+#    num_viface = len(model.snet_nodes)
+#    print_c(model, failed, num_viface, ampl_data_file)
+#    viface_opera_para(ampl_data_file)
+#    print_tau(model, ampl_data_file)
+#    dist_matrix = print_geo_dist(model, ampl_data_file)
+#    rtt_matrix = print_rtt(model, ampl_data_file)
+#    # set default weight parameters
+#    w_a = [0.5, 0.5]
+#    w_b = [0.5, 0.5, 0]
+#    print_weight1(w_a, w_b, ampl_data_file)
+#    res_matrix = print_res_info(snet_info, ampl_data_file)
+#    w_h = [1]
+#    print_res_weight(w_h, ampl_data_file)
+#    w_m = [0.333, 0.333, 0.333]
+#    print_obj_weight(w_m, ampl_data_file)
+#    # create cost mat file for data process
+#    cost_dict = {}
+#    cost_dict['bw'] = bw_matrix
+#    cost_dict['dist'] = dist_matrix
+#    cost_dict['rtt'] = rtt_matrix
+#    cost_dict['cpu'] = res_matrix
+#    mat_dict = matrix_str2num(cost_dict)
+#    scipy.io.savemat(mat_file, mat_dict)
+#    return cost_dict #,failed    
 
-    #snet_info = model.get_snet_info()
-    print_header(ampl_data_file)
-    print_index_bound(model, ampl_data_file)
-    failed = set_info(model, ampl_data_file)
-    print_num_ports(model, ampl_data_file)
-    print_vnode_viface(model, ampl_data_file)
-    bw_matrix = print_bw(model, ampl_data_file)
-    print_indicator(model, ampl_data_file)
-    print_delta(model, ampl_data_file)
-    print_limit(model, ampl_data_file)
-    print_e(model, ampl_data_file)
-    num_viface = len(model.snet_nodes)
-    print_c(model, failed, num_viface, ampl_data_file)
-    viface_opera_para(ampl_data_file)
-    print_tau(model, ampl_data_file)
-    dist_matrix = print_geo_dist(model, ampl_data_file)
-    rtt_matrix = print_rtt(model, ampl_data_file)
-    # set default weight parameters
-    w_a = [0.5, 0.5]
-    w_b = [0.5, 0.5, 0]
-    print_weight1(w_a, w_b, ampl_data_file)
-    res_matrix = print_res_info(snet_info, ampl_data_file)
-    w_h = [1]
-    print_res_weight(w_h, ampl_data_file)
-    w_m = [0.333, 0.333, 0.333]
-    print_obj_weight(w_m, ampl_data_file)
-    # create cost mat file for data process
-    cost_dict = {}
-    cost_dict['bw'] = bw_matrix
-    cost_dict['dist'] = dist_matrix
-    cost_dict['rtt'] = rtt_matrix
-    cost_dict['cpu'] = res_matrix
-    mat_dict = matrix_str2num(cost_dict)
-    scipy.io.savemat(mat_file, mat_dict)
-    return cost_dict #,failed    
 
-
-def run2(model, snet_info, data_file, mat_file):
+def run(model, snet_info, data_file, mat_file):
     ''' program wrapper '''
   
     #failed = set_info(model, ampl_data_file)
@@ -887,14 +887,6 @@ def run2(model, snet_info, data_file, mat_file):
     dist_matrix = print_geo_dist(model, data_file)
     rtt_matrix = print_rtt(model, data_file)   
     res_matrix = print_res_info(snet_info, data_file)
-    # set default weight parameters
-#    w_a = [0.5, 0.5]
-#    w_b = [0.5, 0.5, 0]
-#    print_weight1(w_a, w_b, data_file)
-#    w_h = [1]
-#    print_res_weight(w_h, data_file)
-#    w_m = [0.333, 0.333, 0.333]
-#    print_obj_weight(w_m, data_file)
     # create cost mat file for data process
     cost_dict = {}
     cost_dict['bw'] = bw_matrix
