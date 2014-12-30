@@ -68,14 +68,6 @@ class reconf_model(object):
         
     def create_snet(self, snet_type='geant'):
         ''' create substrate network topology '''
-        # create Interent2 topology
-#        if snet_type == 'I2':
-#            self.snet_topo = topo_gen.substrate_gen('I2')
-        # create GEANT topology
-#        if snet_type == 'GEANT':
-#            self.snet_topo = topo_gen.substrate_gen('GEANT')
-#        if snet_type == 'geant':
-#            self.snet_topo = topo_gen.substrate_gen('geant')
         self.snet_topo = topo_gen.substrate_gen(snet_type)
         self.snet_type = snet_type
 
@@ -160,24 +152,6 @@ class reconf_model(object):
         for node in self.snet_nodes:
             node.set_res_utilize()
             
-#    def add_vnet(self, num_standby, req_bw, vn_id):
-#        """
-#        Create a virtual network on the substrate network, by
-#        providing a specific number of standby routers
-#        """
-#        new_vnet = vn.vnet([],vn_id)
-#        new_vnet.vtopo = topo_gen.vnet_gen(self.snet_topo, num_standby)
-#        # the total number of virtual network can be created depends on the 
-#        # total number of CPU cores that a substrate node 
-#        for node in self.snet_nodes:
-#            #node.ram = node.ram - req_ram
-#            #node.cpu = node.cpu - req_cpu
-#            new_usage = round(random.uniform(0, 1/node.cpu),4)
-#            node.cpu_usage = node.cpu_usage + new_usage
-#        self.conf_vnet_node(new_vnet, req_bw)
-#        self.get_vnet_standbys(new_vnet, num_standby)
-#        self.vnets.append(new_vnet)
-            
     def add_vnet(self, max_standby, min_standby, req_bw, vn_id, fixed_node):
         """
         Create a virtual network on the substrate network, by reserving 
@@ -187,8 +161,6 @@ class reconf_model(object):
         """
         new_vnet = vn.vnet([],vn_id)
         new_vnet.vtopo = topo_gen.vnet_gen(self.snet_topo, max_standby, fixed_node)
-        #print "Vnet topo:", vn_id, new_vnet.vtopo.edges()
-
         for node in self.snet_nodes:
             new_usage = round(random.uniform(0, 1/node.cpu),4)
             node.cpu_usage = node.cpu_usage + new_usage
@@ -290,6 +262,7 @@ class reconf_model(object):
         """
         Take a snapshot of physical resource utilization at the failure, 
         which the dynamic reconfiguration is based on
+        Assume each VR runs 1 CPU core at maximum, so 1/self.snet_ndoes[nodeid].cpu
         """
         for vnet in self.vnets:
             vnet_info = vnet.get_vnet_info()
@@ -400,7 +373,7 @@ class reconf_model(object):
         common_nodes = set.intersection(*set_list)
         return list(common_nodes)              
 
-    def set_failure2(self, ftype='v', num_failure=1):
+    def set_sfailure(self):
         """
         Called by adjust_failure()
         set failure type: substrate failure or virtual network failure
@@ -414,48 +387,48 @@ class reconf_model(object):
         each virtual networks, the number of failures can be any 
         non-negative integer. Only consider single virtual router failure
         """
-        if ftype == 's':
-            failed_dict = {}
-            #snodes = self.snet_nodes
-            #fsnode = random.choice(snodes)
-            common_nodes = self.get_common_nodes()
-            fsnode = random.choice(common_nodes)
-            for vnet in self.vnets:
-                vnodes = vnet.vnodes
-                vstandby_list = vnet.get_standby_ids()
-                #print vstandby_list
-                if fsnode not in vstandby_list:
-                    failed_dict[vnet.vnet_id] = fsnode
-                for vnode in vnodes:
-                    if vnode.vnode_id == fsnode:
-                        vnode.set_status(-1)
-                        #print "virtual network ", vnet.vnet_id, "failed ", vnode.vnode_id
-                        break
-            return failed_dict
-        if ftype == 'v':
-            failed_dict = {}
+#        if ftype == 's':
+        failed_dict = {}
+        #snodes = self.snet_nodes
+        #fsnode = random.choice(snodes)
+        common_nodes = self.get_common_nodes()
+        fsnode = random.choice(common_nodes)
+        for vnet in self.vnets:
+            vnodes = vnet.vnodes
+            vstandby_list = vnet.get_standby_ids()
+            #print vstandby_list
+            if fsnode not in vstandby_list:
+                failed_dict[vnet.vnet_id] = fsnode
+            for vnode in vnodes:
+                if vnode.vnode_id == fsnode:
+                    vnode.set_status(-1)
+                    #print "virtual network ", vnet.vnet_id, "failed ", vnode.vnode_id
+                    break
+        return failed_dict
+#        if ftype == 'v':
+#            failed_dict = {}
+#            
+#            vnet_subset = random.sample(self.vnets, num_failure)
+#            #print "sub-set size", len(vnet_subset)
+#            for vnet in self.vnets:
+#                if vnet in vnet_subset:
+#                    #print vnet.vnet_id
+#                    fvnode_id = vnet.random_fail(1) #single failure
+#                    #print "failed vr is ", fvnode_id
+#                    if fvnode_id != -2: # in current scenario, only one failure
+#                        for vnode in vnet.vnodes:
+#                            if vnode.vnode_id == fvnode_id:
+#                                vnode.set_status(-1)
+#                                #print "virtual network＃", vnet.vnet_id, "failed vr#", vnode.vnode_id
+#                                failed_dict[vnet.vnet_id] = fvnode_id
+#                                break 
+#                else: 
+#                    fvnode_id = -1  # there is no failure
+#                    failed_dict[vnet.vnet_id] = fvnode_id
+#                    pass
+#            return failed_dict
             
-            vnet_subset = random.sample(self.vnets, num_failure)
-            #print "sub-set size", len(vnet_subset)
-            for vnet in self.vnets:
-                if vnet in vnet_subset:
-                    #print vnet.vnet_id
-                    fvnode_id = vnet.random_fail(1) #single failure
-                    #print "failed vr is ", fvnode_id
-                    if fvnode_id != -2: # in current scenario, only one failure
-                        for vnode in vnet.vnodes:
-                            if vnode.vnode_id == fvnode_id:
-                                vnode.set_status(-1)
-                                #print "virtual network＃", vnet.vnet_id, "failed vr#", vnode.vnode_id
-                                failed_dict[vnet.vnet_id] = fvnode_id
-                                break 
-                else: 
-                    fvnode_id = -1  # there is no failure
-                    failed_dict[vnet.vnet_id] = fvnode_id
-                    pass
-            return failed_dict
-            
-    def set_failure3(self, ftype='v', num_failure=1, fail_record=None):
+    def set_vfailure(self, num_failure=1, fail_record=None):
         """
         Called by adjust_failure()
         set failure type: substrate failure or virtual network failure
@@ -471,74 +444,74 @@ class reconf_model(object):
         
         fail_record is in form of [(<vnet_id, fail_id>), ...]
         """
-        if ftype == 's':
-            failed_dict = {}
-            #snodes = self.snet_nodes
-            #fsnode = random.choice(snodes)
-            common_nodes = self.get_common_nodes()
-            fsnode = random.choice(common_nodes)
-            for vnet in self.vnets:
-                vnodes = vnet.vnodes
-                vstandby_list = vnet.get_standby_ids()
-                #print vstandby_list
-                if fsnode not in vstandby_list:
-                    failed_dict[vnet.vnet_id] = fsnode
-                for vnode in vnodes:
-                    if vnode.vnode_id == fsnode:
-                        vnode.set_status(-1)
-                        #print "virtual network ", vnet.vnet_id, "failed ", vnode.vnode_id
-                        break
-            return failed_dict
-        if ftype == 'v':
-            failed_dict = {}
-            #print "sub-set size", len(vnet_subset)
-            
-            
-            #print "num_faliure", num_failure, "current record", len(fail_record)
-            if fail_record != [] and num_failure > len(fail_record):
-                for item in fail_record:
-                    vnet_id = item[0]
-                    fail_vr = item[1]
-                    self.vnets[vnet_id - 1].vnodes[fail_vr].set_status(-1)
-                    #print "virtual network＃", vnet_id, "failed vr#", fail_vr
-                    failed_dict[vnet_id] = fail_vr
-            elif fail_record != [] and num_failure <= len(fail_record):
-                #print "new round", fail_record
-                for item in fail_record:
-                    #print item
-                    vnet_id = item[0]
-                    fail_vr = item[1]
-                    self.vnets[vnet_id - 1].vnodes[fail_vr].set_status(-1)
-                    failed_dict[vnet_id] = fail_vr
-                    #print "vnet_id", vnet_id, "num_failrue", num_failure
-                    if vnet_id > num_failure:
-                        failed_dict[vnet_id] = -1
-                return failed_dict, fail_record
-         
-            
-            new_failure = num_failure - len(failed_dict)
-            #print "new failure", new_failure
-            if fail_record == [] or new_failure > 0:
-                # new failure needs to be added
-                #print "Start"
-                for vnet in self.vnets:
-                    if vnet.vnet_id not in failed_dict and new_failure > 0:
-                        fvnode_id = vnet.random_fail(1)
-                        if fvnode_id != -2:
-                            vnet.vnodes[fvnode_id].set_status(-1)
-                            failed_dict[vnet.vnet_id] = fvnode_id
-                            #print "virtual network＃", vnet.vnet_id, "failed vr#", fvnode_id
-                            fail_record.append((vnet.vnet_id, fvnode_id))
-                            new_failure -= 1
-                        else:
-                            failed_dict[vnet.vnet_id] = -1
-                    elif new_failure == 0 and vnet.vnet_id not in failed_dict:
-                        failed_dict[vnet.vnet_id] = -1
-                    else:
-                        pass
-            
-                    
+#        if ftype == 's':
+#            failed_dict = {}
+#            #snodes = self.snet_nodes
+#            #fsnode = random.choice(snodes)
+#            common_nodes = self.get_common_nodes()
+#            fsnode = random.choice(common_nodes)
+#            for vnet in self.vnets:
+#                vnodes = vnet.vnodes
+#                vstandby_list = vnet.get_standby_ids()
+#                #print vstandby_list
+#                if fsnode not in vstandby_list:
+#                    failed_dict[vnet.vnet_id] = fsnode
+#                for vnode in vnodes:
+#                    if vnode.vnode_id == fsnode:
+#                        vnode.set_status(-1)
+#                        #print "virtual network ", vnet.vnet_id, "failed ", vnode.vnode_id
+#                        break
+#            return failed_dict
+#        if ftype == 'v':
+        failed_dict = {}
+        #print "sub-set size", len(vnet_subset)
+        
+        
+        #print "num_faliure", num_failure, "current record", len(fail_record)
+        if fail_record != [] and num_failure > len(fail_record):
+            for item in fail_record:
+                vnet_id = item[0]
+                fail_vr = item[1]
+                self.vnets[vnet_id - 1].vnodes[fail_vr].set_status(-1)
+                #print "virtual network＃", vnet_id, "failed vr#", fail_vr
+                failed_dict[vnet_id] = fail_vr
+        elif fail_record != [] and num_failure <= len(fail_record):
+            #print "new round", fail_record
+            for item in fail_record:
+                #print item
+                vnet_id = item[0]
+                fail_vr = item[1]
+                self.vnets[vnet_id - 1].vnodes[fail_vr].set_status(-1)
+                failed_dict[vnet_id] = fail_vr
+                #print "vnet_id", vnet_id, "num_failrue", num_failure
+                if vnet_id > num_failure:
+                    failed_dict[vnet_id] = -1
             return failed_dict, fail_record
+     
+        
+        new_failure = num_failure - len(failed_dict)
+        #print "new failure", new_failure
+        if fail_record == [] or new_failure > 0:
+            # new failure needs to be added
+            #print "Start"
+            for vnet in self.vnets:
+                if vnet.vnet_id not in failed_dict and new_failure > 0:
+                    fvnode_id = vnet.random_fail(1)
+                    if fvnode_id != -2:
+                        vnet.vnodes[fvnode_id].set_status(-1)
+                        failed_dict[vnet.vnet_id] = fvnode_id
+                        #print "virtual network＃", vnet.vnet_id, "failed vr#", fvnode_id
+                        fail_record.append((vnet.vnet_id, fvnode_id))
+                        new_failure -= 1
+                    else:
+                        failed_dict[vnet.vnet_id] = -1
+                elif new_failure == 0 and vnet.vnet_id not in failed_dict:
+                    failed_dict[vnet.vnet_id] = -1
+                else:
+                    pass
+        
+                
+        return failed_dict, fail_record
                                     
 
 #def add_standby(model, diff=1):
@@ -546,7 +519,7 @@ class reconf_model(object):
 #    create a new model that has changed the standby
 #    """
 
-def adjust_failure(model, ftype, num_failure):
+def adjust_failure_s(model, num_failure):
     """
     This function is used to adjust failure types and numbers
     ftype reprentes the failure type is a virtual failure or a physical failure
@@ -558,22 +531,22 @@ def adjust_failure(model, ftype, num_failure):
     """
     model_f = deepcopy(model)
     #num_failure = 1
-    if ftype == 'v':
-        failed_dict = model_f.set_failure2(ftype, num_failure)
-        check = model_f.check_no_failure(failed_dict)
-        while not check:
-            failed_dict = model_f.set_failure2(ftype)
-            check = model_f.check_no_failure(failed_dict)
-        model_f.failed_dict = failed_dict
-    if ftype == 's':
-        failed_dict = model_f.set_failure2(ftype)
-        model_f.failed_dict = failed_dict   
+#    if ftype == 'v':
+#        failed_dict = model_f.set_failure2(ftype, num_failure)
+#        check = model_f.check_no_failure(failed_dict)
+#        while not check:
+#            failed_dict = model_f.set_failure2(ftype)
+#            check = model_f.check_no_failure(failed_dict)
+#        model_f.failed_dict = failed_dict
+#    if ftype == 's':
+    failed_dict = model_f.set_sfailure()
+    model_f.failed_dict = failed_dict   
     #snet_info = model.get_snet_info()
     #vnet_info = model.get_vnet_info()
     return model_f
  
 
-def adjust_failure2(model, ftype, num_failure, failure_record):
+def adjust_failure_v(model, num_failure, failure_record):
     """
     The function is used to create failures to the virtual network
     The inputs are:
@@ -586,12 +559,12 @@ def adjust_failure2(model, ftype, num_failure, failure_record):
     failed VRs, and then generate a new failure.
     """
     model_f = deepcopy(model)
-    if ftype == 'v':
-        failed_dict, fail_record = model_f.set_failure3(ftype, num_failure, failure_record)
-        model_f.failed_dict = failed_dict
-    if ftype == 's':
-        failed_dict = model_f.set_failure2(ftype)
-        model_f.failed_dict = failed_dict
+   
+    failed_dict, fail_record = model_f.set_vfailure(num_failure, failure_record)
+    model_f.failed_dict = failed_dict
+#    if ftype == 's':
+#        failed_dict = model_f.set_failure2(ftype)
+#        model_f.failed_dict = failed_dict
     return model_f, fail_record
 
 def dryrun():
@@ -637,7 +610,7 @@ def dryrun():
     model.snapshot_bw_util()
     
     snet_info = model.get_snet_info()
-    cost_dict = ampl_gen.run2(model, snet_info, ampl_data, mat_file) 
+    cost_dict = ampl_gen.run(model, snet_info, ampl_data, mat_file) 
     model.set_cost_dict(cost_dict)
     
     
@@ -661,7 +634,7 @@ def dryrun():
             
             for num_failure in range(1,num_vnet + 1):
                 #model_f = adjust_failure(model, fail_type, num_failure)
-                model_f, fail_record = adjust_failure2(model, fail_type, num_failure, fail_record)
+                model_f, fail_record = adjust_failure_v(model, num_failure, fail_record)
                               
                 if standby_limit != 'inf' and standby_limit != 'rand':
                     # change the limit of standby
@@ -724,7 +697,7 @@ def dryrun():
                     (fname, part, ext) = ampl_data.partition('.')
                     new_datafile = fname + "_" + standby_limit + "_" + str(num_failure) + "fail.dat"
                     shutil.copyfile(ampl_data, new_datafile)
-                    model_f = adjust_failure(model, fail_type, num_failure)
+                    model_f = adjust_failure_s(model, num_failure)
                     failed = ampl_gen.adjust_run(model_f, 
                                           snet_info, 
                                           num_vp, 
@@ -834,9 +807,7 @@ def run(argv=None):
     fail_type = options.fail_type
     standby_limit = options.standby_limit
     seed_value = options.seed_value
-#    w_a = eval(options.w_a)
-#    w_b = eval(options.w_b)
-#    theta = eval(opions.theta)
+
     
     heuristic_obj_file = snet_type + "-" + fail_type + \
                         "-" + str(num_vnet) + ".txt"
@@ -860,13 +831,13 @@ def run(argv=None):
         model.add_vnet(max_standby, min_standby, req_bw, vnet_id, fixed_node)
         vnet_id = vnet_id + 1 
     
-    
+    # Take a snapshot of CPU and BW utilization
     model.snapshot_cpu_util()
     model.snapshot_bw_util()
     
     
     snet_info = model.get_snet_info()
-    cost_dict = ampl_gen.run2(model, snet_info, ampl_data, mat_file) 
+    cost_dict = ampl_gen.run(model, snet_info, ampl_data, mat_file) 
     model.set_cost_dict(cost_dict)
     if standby_limit == 'inf' or standby_limit == 'rand':
         ampl_gen.change_limits(model, ampl_data, standby_limit)
@@ -890,7 +861,7 @@ def run(argv=None):
             
             for num_failure in range(1, num_vnet+1):
                 #model_f = adjust_failure(model, fail_type, num_failure)
-                model_f, fail_record = adjust_failure2(model, fail_type, num_failure, fail_record)
+                model_f, fail_record = adjust_failure_v(model, num_failure, fail_record)
                               
                 if standby_limit != 'inf' and standby_limit != 'rand':
                     # change the limit of standby
@@ -953,22 +924,22 @@ def run(argv=None):
                                                 str(select_dict) +'\n')
         #vnet_info = model_f.get_vnet_info()                                          
                     #print failed
-                
-                else:
-                    (fname, part, ext) = ampl_data.partition('.')
-                    new_datafile = fname + "_" + standby_limit + "_" + str(num_failure) + "fail.dat"
-                    shutil.copyfile(ampl_data, new_datafile)
-                    model_f = adjust_failure(model, fail_type, num_failure)
-                    failed = ampl_gen.adjust_run(model_f, 
-                                          snet_info, 
-                                          num_vp, 
-                                          new_datafile)
-                    print failed
+                # infinite standby VRs
+#                else:
+#                    (fname, part, ext) = ampl_data.partition('.')
+#                    new_datafile = fname + "_" + standby_limit + "_" + str(num_failure) + "fail.dat"
+#                    shutil.copyfile(ampl_data, new_datafile)
+#                    model_f = adjust_failure_v(model, fail_type, num_failure)
+#                    failed = ampl_gen.adjust_run(model_f, 
+#                                          snet_info, 
+#                                          num_vp, 
+#                                          new_datafile)
+#                    print failed
                 
               
     if fail_type == 's':
         num_failure = 1
-        model_f = adjust_failure(model, fail_type, num_failure)
+        model_f = adjust_failure_s(model, num_failure)
         for num_svr in range(min_standby, max_standby+1, 2):
             model.num_standby = num_svr
             #for limit in range(1, int(standby_limit) + 1, 2):
@@ -1004,11 +975,7 @@ def run(argv=None):
                                                                   num_vp, 
                                                                   new_datafile)
                                                
-#                            calc_obj, select_dict, max_r, used_time = heuristic_obj.get_obj(model_f,
-#                                                                     w_a, 
-#                                                                     w_b, 
-#                                                                     theta, 
-#                                                                     limit)
+
                             demand_path, slink_dict, demand_dict = ampl_gen.print_link_path_param(model_f, new_datafile)
                             calc_obj, select_dict, max_r, used_time = heuristic_obj.get_obj_new(model_f,
                                                              demand_path,
@@ -1018,7 +985,6 @@ def run(argv=None):
                                                              w_b, 
                                                              theta, 
                                                              limit)                                                              
-                                    #print new_datafile, calc_obj
                             fopen = open(heuristic_obj_file, 'a')
                             fopen.write(new_datafile + ', ' + \
                                                 str(calc_obj) + ', ' + \
