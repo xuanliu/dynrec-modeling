@@ -319,6 +319,8 @@ class reconf_model(object):
                         self.snet_nodes[node_id].iface_list[iface_id1].update_avail_bw()
                         self.snet_nodes[node_id].total_avail_bw -= link_usage
                         #print "last: ", check
+                    if self.snet_nodes[node_id].total_avail_bw < 0:
+                        raise ValueError("Insufficient bandwidth allocation, exit!")
 
 
     def get_snet_info(self):
@@ -766,7 +768,26 @@ def create_option(parser):
                       default='37',
                       help="initial seed")
                    
-                      
+         
+def gen_theta(lamda_list,w_m):
+    """
+    Generate the primary weight parameter: theta_list = [theta1, theta2, theta3]
+    theta1 = lamda * w_m1
+    theta2 = lamda * w_m2
+    w_m1 + w_m2 = 1
+    theta3 = pi
+    lamda + pi = 1
+    Inputs are: for example: lamda_list = [0,0.1,0.2,...], w_m = [0,1]
+    """        
+    theta_list = []
+    for lamda in lamda_list:
+        theta1 = lamda * w_m[0]
+        theta2 = lamda * w_m[1]
+        theta3 = 1 - lamda
+        theta_list.append((theta1, theta2, theta3))
+    return theta_list
+
+     
 def run(argv=None):
     """
     Create a template model with fixed configuration.
@@ -847,9 +868,10 @@ def run(argv=None):
     
     #w_a_list = [(1, 0), (0.8, 0.2), (0.5, 0.5), (0.2, 0.8), (0, 1)]#[(0.5,0.5), (1, 0), (0, 1), (0.2, 0.8), (0.8, 0.2)]
     w_b_list = [(1,0)]#[(0.5,0.5), (1, 0), (0, 1), (0.2, 0.8), (0.8, 0.2)]
-    #theta_list = [(0, 0, 1), (0, 0.1, 0.9), (0, 0.5, 0.5), (0,1,0)]#[(1, 0, 0), (0, 1, 0), (0, 0, 1), 
-                  #(0.1, 0.2, 0.7), (0.1, 0.7, 0.2), (0.333, 0.333, 0.333)]
-    theta_list = [(0,1,0),(0,0,1),(0,0.02,0.98)]
+    w_m_list = [0,1]
+    #theta_list = [(0,1,0)]#,(0,0,1),(0,0.02,0.98)]
+    lamda_list = [1]
+    theta_list = gen_theta(lamda_list, w_m_list)
     w_a_list = [(0.2, 0.8)]#[(0.8,0.2),(0.2,0.8)]
     # Change number of failures from 1 to the total number of vnet
     if fail_type == 'v':
