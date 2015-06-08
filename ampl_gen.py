@@ -20,6 +20,7 @@ import textwrap
 import scipy.io
 import time
 import topo_xml
+import networkx as nx
 
 TOPO_PATH = "/Users/xuanliu/Documents/projects/dynrec/modeling/formulation/dynrec-modeling/topology/"
 
@@ -591,11 +592,44 @@ def set_rtt(model):
     rtt_matrix = np.insert(norm_rtt, 0, str_index, axis=1)
     return rtt_matrix
 
-def print_rtt(model, data_file):
+def set_rtt2(model,dist_matrix):
+    """
+    set round trip time between any pair of two nodes in the substrate network
+    the RTT is proportial to the hop counts
+    """
+    
+    snodes = model.snet_nodes
+    str_index = gen_index_str(len(snodes))
+    rtt_matrix = scipy.zeros((len(snodes), len(snodes)), dtype = object)
+    #dist_matrix = model.cost_dict['dist']
+    
+    for i in range(len(snodes)):
+        for j in range(len(snodes)):
+            if i == j:
+                rtt_matrix[i][j] = '.'
+            elif j > i:
+                path = nx.shortest_path(model.snet_topo, i,j)
+                tmp_rtt = 0
+                for k in range(len(path)-1):
+                    src = path[k]
+                    dst = path[k+1]
+                    tempdist = eval(dist_matrix[src][dst+1])
+                    tmp_rtt += round(tempdist * random.uniform(0.5,1), 4)
+                rtt_matrix[i][j] = str(tmp_rtt)
+                rtt_matrix[j][i] = str(tmp_rtt)
+            else:
+                pass
+    #norm_rtt = norm_data2(rtt_matrix)
+    rtt_matrix = np.insert(rtt_matrix, 0, str_index, axis=1) 
+    #print rtt_matrix  
+    return rtt_matrix        
+
+
+def print_rtt(model, data_file, dist_matrix):
     """
     print rtt information in ampl data file
     """
-    rtt_matrix = set_rtt(model)
+    rtt_matrix = set_rtt2(model,dist_matrix)
     #print rtt_matrix
     nodeids = map(str, range(1, len(model.snet_nodes)+1))
     header_for_print = '\t'.join(nodeids)
@@ -885,7 +919,7 @@ def run(model, snet_info, data_file, mat_file):
     viface_opera_para(data_file)
     print_tau(model, data_file)
     dist_matrix = print_geo_dist(model, data_file)
-    rtt_matrix = print_rtt(model, data_file)   
+    rtt_matrix = print_rtt(model, data_file,dist_matrix)   
     res_matrix = print_res_info(snet_info, data_file)
     # create cost mat file for data process
     cost_dict = {}
@@ -994,11 +1028,11 @@ def print_slink_info(model_f, ampl_data_file):
     """
     slink_dict = get_slink_info(model_f)
     num_slinks = len(slink_dict.keys())
-    matrix_str = '\t\t\t'.join([str(1), str(slink_dict[1]['src'] + 1), 
-                              str(slink_dict[1]['dst'] + 1), str(slink_dict[1]['capacity'])]) + '\n'
+    matrix_str = '\t\t\t'.join([str(1), str(slink_dict[1]['src'] ), 
+                              str(slink_dict[1]['dst']), str(slink_dict[1]['capacity'])]) + '\n'
     for index in range(2, num_slinks + 1):
-        temp_str = '\t' + '\t\t\t'.join([str(index), str(slink_dict[index]['src'] + 1), 
-                              str(slink_dict[index]['dst'] + 1), str(slink_dict[index]['capacity'])]) + '\n'
+        temp_str = '\t' + '\t\t\t'.join([str(index), str(slink_dict[index]['src']), 
+                              str(slink_dict[index]['dst']), str(slink_dict[index]['capacity'])]) + '\n'
         matrix_str += temp_str
     
     slink_param = """
@@ -1041,6 +1075,11 @@ def get_demand_info(model_f):
                     demand_c_dict[demand_id]['svr'] = svr + 1
                     demand_c_dict[demand_id]['nbr_id'] = fnode_nbr + 1
                     demand_c_dict[demand_id]['capacity']= fnode.neighbor_traffic[fnode_nbr]
+                    if demand_c_dict[demand_id]['capacity'] == 0:
+                        print vnet_id, demand_c_dict[demand_id]['fnode_id'], fnode.neighbor_traffic
+                        vnet_info = model_f.get_vnet_info()
+                        print vnet_info[vnet_id]
+                        raise ValueError("capacity should be positive")
                     demand_id += 1
     return demand_c_dict
                 
