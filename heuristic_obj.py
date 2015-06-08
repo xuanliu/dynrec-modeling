@@ -12,6 +12,7 @@ import operator
 import copy
 import networkx as nx
 import time
+import random
 
 def operation_cost(tau=0):
     """
@@ -88,7 +89,7 @@ def resource_cost(bw_matrix, standby_vr):
     
 def total_bw(bw_matrix):
     """
-    return the total bw for each snet node, in the form of list,
+    return the total residual bw for each snet node, in the form of list,
     where the index is the node id
     """
     node_bw_list = []
@@ -104,6 +105,20 @@ def total_bw(bw_matrix):
         node_bw_list.append(round(temp_bw, 5))
     return node_bw_list
      
+def total_port(model):
+    """
+    get total number of ports for each node
+    """
+    snet_info = model.get_snet_info()
+    used_bw_list = []
+    node_port_list = []
+    for node_id in snet_info:
+        number_port = snet_info[node_id]['num_iface']
+        node_port_list.append(number_port)
+        used_bw = number_port - snet_info[node_id]['sum_avail_bw']
+        used_bw_list.append(round(used_bw, 5))
+    return node_port_list, used_bw_list
+        
     
 
 
@@ -245,15 +260,10 @@ def find_standby(model, limit, w_a, w_b, w_m):
     return selected_dict   
  
  
-
- 
-def find_standby2(model, limit, w_a, w_b, w_m, demand_path, demand_dict, slink_dict):
+def find_random(model,limit, w_a, w_b, w_m, demand_path, demand_dict, slink_dict):
     """
-    Heuristic algorithm to find the standby virtual router
-    for each virtual network
+    find random standby
     """
-    #print slink_dict
-    #print "FIND"
     failed_dict = model.failed_dict
     #print failed_dict, limit
     dist_matrix = model.cost_dict['dist']
@@ -265,8 +275,6 @@ def find_standby2(model, limit, w_a, w_b, w_m, demand_path, demand_dict, slink_d
     snode_bw_list = total_bw(bw_matrix)
     #vnet_set = model.vnets
     sorted_vn = sort_vnet(model)
-    
-    #for vnet in vnet_set:
     if w_m[2] >= 10*w_m[1]:
         threshold = 0.3
     else:
@@ -295,9 +303,11 @@ def find_standby2(model, limit, w_a, w_b, w_m, demand_path, demand_dict, slink_d
                 req_bw = sum(failed_node.neighbor_traffic.values())
                 total = w_m[1] * connect_cost + w_m[2] * req_bw / res_cost
                 standby_cost[s_vr] = total
-            sorted_x = sorted(standby_cost.iteritems(), key=operator.itemgetter(1))
-            #print "SORTED", sorted_x
+            sorted_x  = []
+            for item in standby_cost:
+                sorted_x.append((item, standby_cost[item]))
             
+            random.shuffle(sorted_x)
             for item in sorted_x:
                 if item[0] not in snode_traffic:
                     utilization = vn_traffic[1] / total_bw(bw_matrix)[item[0]]
@@ -362,6 +372,131 @@ def find_standby2(model, limit, w_a, w_b, w_m, demand_path, demand_dict, slink_d
                    
     #print slink_dict                       
     return selected_dict, slink_dict
+ 
+def find_standby2(model, limit, w_a, w_b, w_m, demand_path, demand_dict, slink_dict):
+    """
+    Heuristic algorithm to find the standby virtual router
+    for each virtual network
+    """
+    #print slink_dict
+    #print "FIND"
+    failed_dict = model.failed_dict
+    #print failed_dict, limit
+    dist_matrix = model.cost_dict['dist']
+    rtt_matrix = model.cost_dict['rtt']
+    bw_matrix = model.cost_dict['bw']
+    #cpu_vector = model.cost_dict['cpu']
+    selected_dict = {}
+    
+    # get aggregated residual bw for all substrate nodes, and store it as a list
+    snode_bw_list = total_bw(bw_matrix)
+    
+    # get total capacity and used bw for each snode
+    node_port_list, used_bw_list = total_port(model)
+    #vnet_set = model.vnets
+    sorted_vn = sort_vnet(model)
+
+    #for vnet in vnet_set:
+    if w_m[2] >= 10*w_m[1]:
+        threshold = 0.8
+    else:
+        threshold = 0.8
+    snode_traffic = {}
+    for vn_traffic in sorted_vn:
+        vnet = vn_traffic[0]
+        failed_vr = failed_dict[vnet.vnet_id]
+        if failed_vr != -1: 
+            # this node is failed
+            standby_list = vnet.get_standby_ids()
+            standby_cost = {}
+            for s_vr in standby_list:
+                dist_f = float(dist_matrix[s_vr][failed_vr + 1])
+                failed_node = vnet.vnodes[failed_vr]
+                vneighbors = failed_node.vneighbors
+                dist_k = 0
+                rtt_k = 0
+                for k in vneighbors:
+                    dist_k += float(dist_matrix[s_vr][k + 1])
+                    rtt_k += float(rtt_matrix[s_vr][k + 1])
+
+                connect_cost = w_b[0] * (w_a[0] * dist_f + w_a[1] * dist_k) +\
+                                w_b[1] * rtt_k
+                res_cost = snode_bw_list[s_vr]
+                req_bw = sum(failed_node.neighbor_traffic.values())
+                total = w_m[1] * connect_cost + w_m[2] * req_bw / res_cost
+                standby_cost[s_vr] = total
+            sorted_x = sorted(standby_cost.iteritems(), key=operator.itemgetter(1))
+            #print "SORTED", sorted_x
+            
+            for item in sorted_x:
+                if item[0] not in snode_traffic:
+                    #utilization = vn_traffic[1] / total_bw(bw_matrix)[item[0]]
+                    utilization = (vn_traffic[1] + used_bw_list[item[0]])/node_port_list[item[0]]
+                else:
+                    #utilization = (snode_traffic[item[0]] + vn_traffic[1]) / total_bw(bw_matrix)[item[0]]
+                    utilization = (snode_traffic[item[0]] + vn_traffic[1] + used_bw_list[item[0]])/node_port_list[item[0]]
+                #print utilization
+                # Link-Path selsection add-on
+                path_alloc = 1
+                for k in vneighbors:
+                    demand_id = find_demand_id(demand_dict, vnet.vnet_id, failed_vr + 1,
+                                               item[0] + 1, k + 1)
+                    demand = demand_dict[demand_id]['capacity']
+                    find, path = find_path(demand_path, demand_id, 
+                                     slink_dict, demand) 
+                    if find == 0:
+                        print "No available path between svr and nbr on the substrate network" 
+                        path_alloc = 0
+                    #print "FIND PATH", find, path
+                # End link-path block 
+                #print "ALLOCATED: ", path_alloc
+                if path_alloc == 1:
+                    if selected_dict.values().count(item[0]) < limit:
+                        if utilization < threshold and w_m[2] >= 10*w_m[1]:
+                            if item[0] not in snode_traffic: 
+                                selected_dict[vnet.vnet_id] = item[0]
+                                snode_bw_list[item[0]] -= vn_traffic[1]
+                                snode_traffic[item[0]] = vn_traffic[1]
+                                for slink_id in path:
+                                    #print vn_traffic[1], slink_dict[slink_id]['capacity']
+                                    slink_dict[slink_id]['capacity'] = slink_dict[slink_id]['capacity'] - vn_traffic[1]
+                                    #print slink_dict[slink_id]['capacity']
+                                break;
+                            else:
+                                min_id = find_min(sorted_x, bw_matrix, snode_traffic, vn_traffic[1]) 
+                                if min_id == item[0]:
+                                    selected_dict[vnet.vnet_id] = item[0]
+                                    snode_bw_list[item[0]] -= vn_traffic[1]
+                                    snode_traffic[item[0]] += vn_traffic[1]
+                                    for slink_id in path:
+                                        #print vn_traffic[1],slink_dict[slink_id]['capacity']
+                                        slink_dict[slink_id]['capacity'] = slink_dict[slink_id]['capacity'] - vn_traffic[1]
+                                        #print slink_dict[slink_id]['capacity']
+                                #threshold = (threshold + 0.01)/2
+                                    break
+                        elif utilization < threshold:
+                            selected_dict[vnet.vnet_id] = item[0]
+                            snode_bw_list[item[0]] -= vn_traffic[1]
+                            if item[0] not in snode_traffic: 
+                                snode_traffic[item[0]] = vn_traffic[1]
+                            else:
+                                snode_traffic[item[0]] += vn_traffic[1]
+                            for slink_id in path:
+                                #print vn_traffic[1],slink_dict[slink_id]['capacity']
+                                slink_dict[slink_id]['capacity'] = slink_dict[slink_id]['capacity'] - vn_traffic[1]
+                                #print slink_dict[slink_id]['capacity']
+                            break
+                        else:
+                            print "does not satisfy the threshold"  
+                    # if a svr is selected -- item[0]
+                        
+                        
+                        
+                else:
+                    print "cannot allocate paths"
+                   
+    #print slink_dict                       
+    return selected_dict, slink_dict
     
 def find_min(sorted_x, bw_matrix, snode_traffic, traffic_req):
     ''' find the minimum utilization '''
@@ -390,7 +525,7 @@ def sort_vnet(model, option='traffic'):
         failed_node_traffic = vnet_info[vn.vnet_id]['traffic'][failed_id][1]
         vnet_traffic[vn] = round(failed_node_traffic, 5)
     sorted_vn = sorted(vnet_traffic.iteritems(), key=operator.itemgetter(1)) 
-    sorted_vn.reverse
+    sorted_vn.reverse()
     return sorted_vn
     
 
@@ -508,21 +643,27 @@ def get_obj_new(model_old, demand_path, slink_dict, demand_dict, w_a, w_b, theta
     #cpu_vector = model.cost_dict['cpu']
     dist_matrix = model.cost_dict['dist']
     rtt_matrix = model.cost_dict['rtt']
-    bw_matrix = model.cost_dict['bw']
+    #bw_matrix = model.cost_dict['bw']
     w_a1, w_a2 = w_a
     w_b1, w_b2 = w_b
     theta1, theta2, theta3 = theta
+    # find total capacity and used bw on substrate nodes
+    node_port_list, used_bw_list = total_port(model)
     
     infeasible = 0
 
     fail_nodes = model.failed_dict
     start_time = time.time()
     select_dict, slink_dict = find_standby2(model, s_limit, w_a, w_b, theta, demand_path, demand_dict, slink_dict)
+    # random selection
+    #select_dict, slink_dict = find_random(model, s_limit, w_a, w_b, theta, demand_path, demand_dict, slink_dict)
     #print "selection takes: ", time.time() - start_time
     #print "Selected", select_dict
     sum_cost_1_2 = 0
     r_list = {}
-   
+    for node_id in range(0,len(node_port_list)):
+        r_list[node_id] = used_bw_list[node_id]/node_port_list[node_id]
+    
     for vnet in model.vnets:
         j = vnet.vnet_id
         f = fail_nodes[j]
@@ -542,11 +683,14 @@ def get_obj_new(model_old, demand_path, slink_dict, demand_dict, w_a, w_b, theta
                     rtt_c = rtt_cost(i, k, rtt_matrix)
                     sigma = connect_cost(dist_c, rtt_c, w_b1, w_b2)
                     sum_cost_1_2 += theta1 * eta + theta2 * sigma
-                xi = resource_cost(bw_matrix, i)
+                #find residual bw on substrate node
+                #xi = resource_cost(bw_matrix, i)
                 req_bw = sum(failed_node.neighbor_traffic.values())
-                util = req_bw / xi
+                #util = req_bw / xi
+                #print req_bw, i, used_bw_list[i], node_port_list[i]
+                util = req_bw/node_port_list[i]
                 if i not in r_list:
-                    r_list[i] = util
+                    r_list[i] = util #+ used_bw_list[i]/node_port_list[i]
                 else:
                     r_list[i] += util
                 #print sigma, " v_" + str(vnet.vnet_id) + "_" + str(f) + "_" + str(i) + "_" + str(k) + "_" + str(k)
@@ -554,8 +698,10 @@ def get_obj_new(model_old, demand_path, slink_dict, demand_dict, w_a, w_b, theta
                 print "INFEASIBLE at vnet: ", j
                 infeasible = 1
     #print "DONE"
+    #print "r_list", r_list
     if infeasible == 0:
         max_util = max(r_list.values())
+        print max_util
         obj = sum_cost_1_2 + theta3 * max_util
     else:
         obj = "infeasible"
