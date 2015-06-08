@@ -250,7 +250,7 @@ subject to bw {i in PRouter, j in VNet, f in Fail[j]: delta[i,j] == 1 && i <> f}
 
 # Constraint (8)
 subject to res_util {i in PRouter: sum_delta[i] > 0}:
-    sum {j in VNet, f in Fail[j]: i <> f} delta[i,j] * u[j,f,i] * sum {k in PRouter, m in VIface[i,j]: k <> i && k <> f} gamma[j,f,i,m,k] * c[j,f,i,m,k] <= sum {p in Port[i]} b[i,p] * RR;
+    sum {j in VNet, f in Fail[j]: i <> f} delta[i,j] * u[j,f,i] * sum {k in PRouter, m in VIface[i,j]: k <> i && k <> f} gamma[j,f,i,m,k] * c[j,f,i,m,k] + sum {p in Port[i]} (1 - b[i,p]) <= sum{p in Port[i]} 1 * RR;
 
 # Constraint (9)
 subject to d_pair{d in demand, j in VNet, f in Fail[j], i in PRouter: i<>f && delta[i,j] == 1 && demand_fnode[d] == f && demand_vn[d] == j && demand_src[d] == i}: sum{q in Q[d]} x[d,q] = demand_c[d] * u[j,f,i];
