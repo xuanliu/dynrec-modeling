@@ -99,7 +99,7 @@ class reconf_model(object):
             self.snet_nodes.append(new_node)
         #self.set_snodes_curr_bw()        
         
-    def find_shotestpath(self,src=None, dst=None):
+    def find_shortestpath(self,src=None, dst=None):
         """
         find the shortest path, in order to change the residual 
         capacity on the physical interface of each substrate node 
@@ -107,7 +107,9 @@ class reconf_model(object):
         """
         path_nodes = nx.shortest_path(self.snet_topo, src, dst)
         return path_nodes
-                       
+       
+
+        
     def find_remote_onpath(self, path_nodes, node):
         """
         given a node id, find its neighbors on the path
@@ -270,8 +272,70 @@ class reconf_model(object):
             for nodeid in vnode_up:
                 self.snet_nodes[nodeid].cpu_usage += \
                     round(random.uniform(0, 1/self.snet_nodes[nodeid].cpu),5)
+    
+    
+    def find_all_shortestpaths(self, src=None, dst=None):
+        """
+        find the all shorest paths between two nodes
+        """                
+        path_list = []
+        for path in nx.all_shortest_paths(self.snet_topo, src, dst):
+            path_list.append(path)
+        return path_list
+    
         
-    def snapshot_bw_util(self):
+    def alloc_path(self, path_list, link_usage):
+        """
+        based on the link usage, allocate a path
+        """
+        allocated = 0
+        #print path_list
+        for path in path_list:
+            find = 1
+            for node_id in path:
+                neighbor_list = self.find_remote_onpath(path, node_id)
+                if path.index(node_id) == 0:
+                    neighbor_id = neighbor_list[0]
+                    iface_id = self.snet_nodes[node_id].find_iface2neighbor(neighbor_id)
+                    res_bw = self.snet_nodes[node_id].iface_list[iface_id].avail_bw - link_usage
+                    #print "check", node_id, self.snet_nodes[node_id].iface_list[iface_id].avail_bw, link_usage
+                    if res_bw <= 0:
+                        find = 0
+                        print "not available"
+                        break
+                elif path.index(node_id) < len(path) - 1:
+                    iface_id1 = self.snet_nodes[node_id].find_iface2neighbor(neighbor_list[0])
+                    res_bw = self.snet_nodes[node_id].iface_list[iface_id1].avail_bw - link_usage
+                    #print "check", node_id, self.snet_nodes[node_id].iface_list[iface_id1].avail_bw, link_usage
+                    if res_bw <= 0:
+                        find = 0
+                        print "not available"
+                        break
+                    iface_id2 = self.snet_nodes[node_id].find_iface2neighbor(neighbor_list[1])
+                    res_bw = self.snet_nodes[node_id].iface_list[iface_id2].avail_bw - link_usage
+                    if res_bw <= 0:
+                        find = 0
+                        print "not available"
+                        break
+                    #print "check", node_id, self.snet_nodes[node_id].iface_list[iface_id1].avail_bw, link_usage
+                else:
+                    iface_id1 = self.snet_nodes[node_id].find_iface2neighbor(neighbor_list[0])
+                    res_bw = self.snet_nodes[node_id].iface_list[iface_id1].avail_bw - link_usage
+                    #print "check", node_id, self.snet_nodes[node_id].iface_list[iface_id1].avail_bw, link_usage
+                    if res_bw <= 0:
+                        find = 0
+                        print "not available"
+                        break
+                    
+            if find == 0:
+                continue
+            else:
+                allocated = 1
+                break
+        return allocated, path 
+              
+                
+    def snapshot_bw_util(self, req_bw = 0.01):
         """
         Take a snapshot of physical link bandwith usage at the failure,
         Based on the virtual link connections and determin the traffic on 
@@ -280,47 +344,57 @@ class reconf_model(object):
         for vnet in self.vnets:
             vnet_info = vnet.get_vnet_info()
             vtopo = vnet_info['topo']
-        
+            #print vnet.vnet_id, vtopo
             for link in vtopo:
+                #print link
                 src, dst = link
-                snet_path_nodes = self.find_shotestpath(src, dst)
+                #snet_path_nodes = self.find_shortestpath(src, dst)
                 
                 # the traffic along the path should be the same
-                link_usage = round(random.uniform(0,0.01), 5)
-                vnet.set_traffic(src, dst, link_usage)
-                vnet.set_traffic(dst, src, link_usage)
-                for node_id in snet_path_nodes:
-                    neighbor_list = self.find_remote_onpath(snet_path_nodes, 
-                                                            node_id)
-                    if snet_path_nodes.index(node_id) == 0:
-                        neighbor_id = neighbor_list[0]
-                        iface_id = self.snet_nodes[node_id].find_iface2neighbor(neighbor_id)
-                        link_usage = round(random.uniform(0,0.01), 5)
-                        #print "start: ", link_usage
-                        self.snet_nodes[node_id].iface_list[iface_id].set_utilize(link_usage)
-                        self.snet_nodes[node_id].iface_list[iface_id].update_avail_bw()
-                        self.snet_nodes[node_id].total_avail_bw -= link_usage
-                        #check = link_usage
-                    elif snet_path_nodes.index(node_id) < len(snet_path_nodes) - 1:
-                        iface_id1 = self.snet_nodes[node_id].find_iface2neighbor(neighbor_list[0])
-                        self.snet_nodes[node_id].iface_list[iface_id1].set_utilize(link_usage)
-                        self.snet_nodes[node_id].iface_list[iface_id1].update_avail_bw()
-                        self.snet_nodes[node_id].total_avail_bw -= link_usage
-                        iface_id2 = self.snet_nodes[node_id].find_iface2neighbor(neighbor_list[1])
-                        #link_usage = round(random.uniform(0,0.01), 5)
-                        #print "one iface:", check
-                        self.snet_nodes[node_id].iface_list[iface_id2].set_utilize(link_usage)
-                        self.snet_nodes[node_id].iface_list[iface_id2].update_avail_bw()
-                        self.snet_nodes[node_id].total_avail_bw -= link_usage
-                        #print "other iface:", check
-                    else:
-                        iface_id1 = self.snet_nodes[node_id].find_iface2neighbor(neighbor_list[0])
-                        self.snet_nodes[node_id].iface_list[iface_id1].set_utilize(link_usage)
-                        self.snet_nodes[node_id].iface_list[iface_id1].update_avail_bw()
-                        self.snet_nodes[node_id].total_avail_bw -= link_usage
-                        #print "last: ", check
-                    if self.snet_nodes[node_id].total_avail_bw < 0:
-                        raise ValueError("Insufficient bandwidth allocation, exit!")
+                link_usage = round(random.uniform(0,req_bw), 5)
+                # Avoid link usage = 0
+                while link_usage == 0:
+                    print "+1"
+                    link_usage = round(random.uniform(0,req_bw), 5)
+                    
+                path_list = self.find_all_shortestpaths(src, dst)
+                #print link_usage
+                allocated, snet_path_nodes = self.alloc_path(path_list, link_usage)
+                #print allocated, snet_path_nodes
+                if allocated == 0:
+                    raise ValueError("Insufficient bandwidth allocation, exit!")
+                    #pass
+                else:
+                    vnet.set_traffic(src, dst, link_usage)
+                    vnet.set_traffic(dst, src, link_usage)
+                    for node_id in snet_path_nodes:
+                        neighbor_list = self.find_remote_onpath(snet_path_nodes, 
+                                                                node_id)
+                        if snet_path_nodes.index(node_id) == 0:
+                            neighbor_id = neighbor_list[0]
+                            iface_id = self.snet_nodes[node_id].find_iface2neighbor(neighbor_id)
+                            #self.snet_nodes[node_id].iface_list[iface_id].set_utilize(link_usage)
+                            self.snet_nodes[node_id].iface_list[iface_id].update_avail_bw(link_usage)
+                            self.snet_nodes[node_id].total_avail_bw -= link_usage
+                            #print self.snet_nodes[node_id].iface_list[iface_id].avail_bw, link_usage
+                        elif snet_path_nodes.index(node_id) < len(snet_path_nodes) - 1:
+                            iface_id1 = self.snet_nodes[node_id].find_iface2neighbor(neighbor_list[0])
+                            #self.snet_nodes[node_id].iface_list[iface_id1].set_utilize(link_usage)
+                            self.snet_nodes[node_id].iface_list[iface_id1].update_avail_bw(link_usage)
+                            self.snet_nodes[node_id].total_avail_bw -= link_usage
+                            #print self.snet_nodes[node_id].iface_list[iface_id1].avail_bw, link_usage
+                            iface_id2 = self.snet_nodes[node_id].find_iface2neighbor(neighbor_list[1])
+                            #self.snet_nodes[node_id].iface_list[iface_id2].set_utilize(link_usage)
+                            self.snet_nodes[node_id].iface_list[iface_id2].update_avail_bw(link_usage)
+                            self.snet_nodes[node_id].total_avail_bw -= link_usage
+                            #print self.snet_nodes[node_id].iface_list[iface_id2].avail_bw, link_usage
+                        else:
+                            iface_id1 = self.snet_nodes[node_id].find_iface2neighbor(neighbor_list[0])
+                            #self.snet_nodes[node_id].iface_list[iface_id1].set_utilize(link_usage)
+                            self.snet_nodes[node_id].iface_list[iface_id1].update_avail_bw(link_usage)
+                            self.snet_nodes[node_id].total_avail_bw -= link_usage
+                            #print self.snet_nodes[node_id].iface_list[iface_id1].avail_bw, link_usage
+                       
 
 
     def get_snet_info(self):
@@ -378,21 +452,15 @@ class reconf_model(object):
     def set_sfailure(self):
         """
         Called by adjust_failure()
-        set failure type: substrate failure or virtual network failure
-        input ftype = 's' or 'v'
+        set failure type: substrate failure 
+        input ftype = 's' 
         
         ftype = 's': substrate failure. Randomly selects a substrate node,
         and each virtual router with the same id has to be marked as 
         failed(-1). Currently, only consider single substrate router failure.
-        
-        ftype = 'v': virtual network failure. Randomly generate failures in
-        each virtual networks, the number of failures can be any 
-        non-negative integer. Only consider single virtual router failure
         """
-#        if ftype == 's':
+
         failed_dict = {}
-        #snodes = self.snet_nodes
-        #fsnode = random.choice(snodes)
         common_nodes = self.get_common_nodes()
         fsnode = random.choice(common_nodes)
         for vnet in self.vnets:
@@ -407,38 +475,13 @@ class reconf_model(object):
                     #print "virtual network ", vnet.vnet_id, "failed ", vnode.vnode_id
                     break
         return failed_dict
-#        if ftype == 'v':
-#            failed_dict = {}
-#            
-#            vnet_subset = random.sample(self.vnets, num_failure)
-#            #print "sub-set size", len(vnet_subset)
-#            for vnet in self.vnets:
-#                if vnet in vnet_subset:
-#                    #print vnet.vnet_id
-#                    fvnode_id = vnet.random_fail(1) #single failure
-#                    #print "failed vr is ", fvnode_id
-#                    if fvnode_id != -2: # in current scenario, only one failure
-#                        for vnode in vnet.vnodes:
-#                            if vnode.vnode_id == fvnode_id:
-#                                vnode.set_status(-1)
-#                                #print "virtual network＃", vnet.vnet_id, "failed vr#", vnode.vnode_id
-#                                failed_dict[vnet.vnet_id] = fvnode_id
-#                                break 
-#                else: 
-#                    fvnode_id = -1  # there is no failure
-#                    failed_dict[vnet.vnet_id] = fvnode_id
-#                    pass
-#            return failed_dict
+
             
     def set_vfailure(self, num_failure=1, fail_record=None):
         """
         Called by adjust_failure()
-        set failure type: substrate failure or virtual network failure
-        input ftype = 's' or 'v'
-        
-        ftype = 's': substrate failure. Randomly selects a substrate node,
-        and each virtual router with the same id has to be marked as 
-        failed(-1). Currently, only consider single substrate router failure.
+        set failure type: virtual network failure
+        input ftype = 'v'
         
         ftype = 'v': virtual network failure. Randomly generate failures in
         each virtual networks, the number of failures can be any 
@@ -446,30 +489,8 @@ class reconf_model(object):
         
         fail_record is in form of [(<vnet_id, fail_id>), ...]
         """
-#        if ftype == 's':
-#            failed_dict = {}
-#            #snodes = self.snet_nodes
-#            #fsnode = random.choice(snodes)
-#            common_nodes = self.get_common_nodes()
-#            fsnode = random.choice(common_nodes)
-#            for vnet in self.vnets:
-#                vnodes = vnet.vnodes
-#                vstandby_list = vnet.get_standby_ids()
-#                #print vstandby_list
-#                if fsnode not in vstandby_list:
-#                    failed_dict[vnet.vnet_id] = fsnode
-#                for vnode in vnodes:
-#                    if vnode.vnode_id == fsnode:
-#                        vnode.set_status(-1)
-#                        #print "virtual network ", vnet.vnet_id, "failed ", vnode.vnode_id
-#                        break
-#            return failed_dict
-#        if ftype == 'v':
+
         failed_dict = {}
-        #print "sub-set size", len(vnet_subset)
-        
-        
-        #print "num_faliure", num_failure, "current record", len(fail_record)
         if fail_record != [] and num_failure > len(fail_record):
             for item in fail_record:
                 vnet_id = item[0]
@@ -524,27 +545,15 @@ class reconf_model(object):
 def adjust_failure_s(model, num_failure):
     """
     This function is used to adjust failure types and numbers
-    ftype reprentes the failure type is a virtual failure or a physical failure
+    ftype reprentes the failure type is a physical failure
     num_failure is the total number failed virtual network
     If ftype = 's', num_failure takes default value 1
-    If ftype = 'v', num_failure takes the maximum values as the number of 
-    virtual networks, as we consider only single virtual router failure in each
-    virtual networks.
     """
     model_f = deepcopy(model)
-    #num_failure = 1
-#    if ftype == 'v':
-#        failed_dict = model_f.set_failure2(ftype, num_failure)
-#        check = model_f.check_no_failure(failed_dict)
-#        while not check:
-#            failed_dict = model_f.set_failure2(ftype)
-#            check = model_f.check_no_failure(failed_dict)
-#        model_f.failed_dict = failed_dict
-#    if ftype == 's':
+
     failed_dict = model_f.set_sfailure()
     model_f.failed_dict = failed_dict   
-    #snet_info = model.get_snet_info()
-    #vnet_info = model.get_vnet_info()
+
     return model_f
  
 
@@ -564,19 +573,17 @@ def adjust_failure_v(model, num_failure, failure_record):
    
     failed_dict, fail_record = model_f.set_vfailure(num_failure, failure_record)
     model_f.failed_dict = failed_dict
-#    if ftype == 's':
-#        failed_dict = model_f.set_failure2(ftype)
-#        model_f.failed_dict = failed_dict
+
     return model_f, fail_record
 
 def dryrun():
     """
     For Debug
     """
-    num_vnet = 2
+    num_vnet = 10
     max_standby = 6
-    min_standby = 4
-    req_bw = 0.01
+    min_standby = 6
+    req_bw = 0.08
     fail_type = 'v'
     ampl_data = 'lp_test1.dat'
     mat_file = 'lp_test1.mat'
@@ -602,14 +609,13 @@ def dryrun():
     vnet_id = 1
     #seed_list = [23,59,101,239,383,499,617,701,823,919]
     while vnet_id <= num_vnet:
-        #req_standby = random.randint(3, max_standby)
-        #print vnet_id, num_vnet
+
         model.add_vnet(max_standby, min_standby, req_bw, vnet_id, fixed_node)
         vnet_id = vnet_id + 1 
         
     
     model.snapshot_cpu_util()
-    model.snapshot_bw_util()
+    model.snapshot_bw_util(req_bw)
     
     snet_info = model.get_snet_info()
     cost_dict = ampl_gen.run(model, snet_info, ampl_data, mat_file) 
@@ -640,7 +646,7 @@ def dryrun():
                               
                 if standby_limit != 'inf' and standby_limit != 'rand':
                     # change the limit of standby
-                    for limit in range(standby_limit, int(standby_limit) + 1, 1):
+                    for limit in range(1, int(standby_limit) + 1, 1):
                         limit_ext = str(limit)
                         (fname, part, ext) = ampl_data.partition('.')
                         # changing weight parameters
@@ -687,7 +693,7 @@ def dryrun():
 #                                                                     w_b, 
 #                                                                     theta, 
 #                                                                     limit)
-                                    #print new_datafile, calc_obj
+                                    print calc_obj, select_dict, max_r
                                     fopen = open(heuristic_obj_file, 'a')
                                     fopen.write(new_datafile + ', ' + \
                                                 str(calc_obj) + ', ' + \
@@ -772,8 +778,8 @@ def create_option(parser):
 def gen_theta(lamda_list,w_m):
     """
     Generate the primary weight parameter: theta_list = [theta1, theta2, theta3]
-    theta1 = lamda * w_m1
-    theta2 = lamda * w_m2
+    theta1 = lamda * w_m1 (interface operation cost)
+    theta2 = lamda * w_m2 (connectivity cost)
     w_m1 + w_m2 = 1
     theta3 = pi
     lamda + pi = 1
@@ -854,8 +860,8 @@ def run(argv=None):
     
     # Take a snapshot of CPU and BW utilization
     model.snapshot_cpu_util()
-    model.snapshot_bw_util()
-    
+    #model.snapshot_bw_util()
+    model.snapshot_bw_util(req_bw)
     
     snet_info = model.get_snet_info()
     cost_dict = ampl_gen.run(model, snet_info, ampl_data, mat_file) 
@@ -866,13 +872,13 @@ def run(argv=None):
         pass
     num_vp = len(model.snet_nodes) 
     
-    #w_a_list = [(1, 0), (0.8, 0.2), (0.5, 0.5), (0.2, 0.8), (0, 1)]#[(0.5,0.5), (1, 0), (0, 1), (0.2, 0.8), (0.8, 0.2)]
-    w_b_list = [(1,0)]#[(0.5,0.5), (1, 0), (0, 1), (0.2, 0.8), (0.8, 0.2)]
+    w_a_list = [(0.2,0.8)]#[(1, 0), (0.8, 0.2), (0.5, 0.5), (0.2, 0.8), (0, 1)]
+    w_b_list = [(0.2,0.8)]#[(0,1),(0.2, 0.8),(0.5,0.5), (0.8, 0.2),(1, 0)]
     w_m_list = [0,1]
     #theta_list = [(0,1,0)]#,(0,0,1),(0,0.02,0.98)]
-    lamda_list = [1]
+    lamda_list = [0,0.02,1]#,0.02,0.04,0.06,0.1,0.2,1]
     theta_list = gen_theta(lamda_list, w_m_list)
-    w_a_list = [(0.2, 0.8)]#[(0.8,0.2),(0.2,0.8)]
+    #w_a_list = [(0.2,0.8),(0.8,0.2)]
     # Change number of failures from 1 to the total number of vnet
     if fail_type == 'v':
         # change the number of standby
@@ -944,19 +950,6 @@ def run(argv=None):
                                                 str(used_time) + ',' + \
                                                 str(max_r) + ', ' + \
                                                 str(select_dict) +'\n')
-        #vnet_info = model_f.get_vnet_info()                                          
-                    #print failed
-                # infinite standby VRs
-#                else:
-#                    (fname, part, ext) = ampl_data.partition('.')
-#                    new_datafile = fname + "_" + standby_limit + "_" + str(num_failure) + "fail.dat"
-#                    shutil.copyfile(ampl_data, new_datafile)
-#                    model_f = adjust_failure_v(model, fail_type, num_failure)
-#                    failed = ampl_gen.adjust_run(model_f, 
-#                                          snet_info, 
-#                                          num_vp, 
-#                                          new_datafile)
-#                    print failed
                 
               
     if fail_type == 's':
@@ -965,7 +958,7 @@ def run(argv=None):
         for num_svr in range(min_standby, max_standby+1, 2):
             model.num_standby = num_svr
             #for limit in range(1, int(standby_limit) + 1, 2):
-            for limit in range(8, 10, 2):
+            for limit in range(1, int(10) + 1, 2):
                 limit_ext = str(limit)
                 (fname, part, ext) = ampl_data.partition('.')
                     # changing weight parameters
