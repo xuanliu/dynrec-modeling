@@ -12,6 +12,7 @@
 # Created on Mar. 6, 2014
 # Modified on May 11, 2014
 # Adding link-path constraints on Sep. 24, 2014
+# Modified constraint (9) on June 8, 2015, change it to total bw utilization. 
 
 
 ##### Index bound Declaration ####
