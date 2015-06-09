@@ -120,26 +120,31 @@ def total_port(model):
     return node_port_list, used_bw_list
         
     
-
-
+    
 #def find_standby(model, limit, w_a, w_b, w_m):
 #    """
 #    Heuristic algorithm to find the standby virtual routr 
 #    for each virtual network
 #    """
-#    
+#    #print "FIND"
 #    failed_dict = model.failed_dict
 #    #print failed_dict, limit
 #    dist_matrix = model.cost_dict['dist']
 #    rtt_matrix = model.cost_dict['rtt']
 #    bw_matrix = model.cost_dict['bw']
-#    cpu_vector = model.cost_dict['cpu']
+#    #cpu_vector = model.cost_dict['cpu']
 #    selected_dict = {}
 #    
 #    snode_bw_list = total_bw(bw_matrix)
 #    #vnet_set = model.vnets
 #    sorted_vn = sort_vnet(model)
+#    
 #    #for vnet in vnet_set:
+#    if w_m[2] >= 10*w_m[1]:
+#        threshold = 0.3
+#    else:
+#        threshold = 0.8
+#    snode_traffic = {}
 #    for vn_traffic in sorted_vn:
 #        vnet = vn_traffic[0]
 #        failed_vr = failed_dict[vnet.vnet_id]
@@ -155,109 +160,50 @@ def total_port(model):
 #                rtt_k = 0
 #                for k in vneighbors:
 #                    dist_k += float(dist_matrix[s_vr][k + 1])
-#                    rtt_k += float(rtt_matrix[s_vr][k + 1])
+#                    rtt_k += float(rtt_matrix[s_vr][k + 1]) 
 #                connect_cost = w_b[0] * (w_a[0] * dist_f + w_a[1] * dist_k) +\
 #                                w_b[1] * rtt_k
-#                res_cost = float(cpu_vector[0][s_vr]) * snode_bw_list[s_vr]
-#                total = w_m[1] * connect_cost - w_m[2] * res_cost
+#                res_cost = snode_bw_list[s_vr]
+#                req_bw = sum(failed_node.neighbor_traffic.values())
+#                total = w_m[1] * connect_cost + w_m[2] * req_bw / res_cost
 #                standby_cost[s_vr] = total
 #            sorted_x = sorted(standby_cost.iteritems(), key=operator.itemgetter(1))
-#            #print "sorted", sorted_x
 #            
-#           
 #            for item in sorted_x:
-#                
+#                if item[0] not in snode_traffic:
+#                    utilization = vn_traffic[1] / total_bw(bw_matrix)[item[0]]
+#                else:
+#                    utilization = (snode_traffic[item[0]] + vn_traffic[1]) / total_bw(bw_matrix)[item[0]]
+#                    
+#                # Link-Path selsection add-on
+#                    
+#                # End link-path block    
 #                if selected_dict.values().count(item[0]) < limit:
-#                    selected_dict[vnet.vnet_id] = item[0]
-#                    #print selected_dict
-#                    snode_bw_list[item[0]] -= vn_traffic[1]
-#                    break
-#         
-#    return selected_dict
-    
-def find_standby(model, limit, w_a, w_b, w_m):
-    """
-    Heuristic algorithm to find the standby virtual routr 
-    for each virtual network
-    """
-    #print "FIND"
-    failed_dict = model.failed_dict
-    #print failed_dict, limit
-    dist_matrix = model.cost_dict['dist']
-    rtt_matrix = model.cost_dict['rtt']
-    bw_matrix = model.cost_dict['bw']
-    #cpu_vector = model.cost_dict['cpu']
-    selected_dict = {}
-    
-    snode_bw_list = total_bw(bw_matrix)
-    #vnet_set = model.vnets
-    sorted_vn = sort_vnet(model)
-    
-    #for vnet in vnet_set:
-    if w_m[2] >= 10*w_m[1]:
-        threshold = 0.3
-    else:
-        threshold = 0.8
-    snode_traffic = {}
-    for vn_traffic in sorted_vn:
-        vnet = vn_traffic[0]
-        failed_vr = failed_dict[vnet.vnet_id]
-        if failed_vr != -1: 
-            # this node is failed
-            standby_list = vnet.get_standby_ids()
-            standby_cost = {}
-            for s_vr in standby_list:
-                dist_f = float(dist_matrix[s_vr][failed_vr + 1])
-                failed_node = vnet.vnodes[failed_vr]
-                vneighbors = failed_node.vneighbors
-                dist_k = 0
-                rtt_k = 0
-                for k in vneighbors:
-                    dist_k += float(dist_matrix[s_vr][k + 1])
-                    rtt_k += float(rtt_matrix[s_vr][k + 1]) 
-                connect_cost = w_b[0] * (w_a[0] * dist_f + w_a[1] * dist_k) +\
-                                w_b[1] * rtt_k
-                res_cost = snode_bw_list[s_vr]
-                req_bw = sum(failed_node.neighbor_traffic.values())
-                total = w_m[1] * connect_cost + w_m[2] * req_bw / res_cost
-                standby_cost[s_vr] = total
-            sorted_x = sorted(standby_cost.iteritems(), key=operator.itemgetter(1))
-            
-            for item in sorted_x:
-                if item[0] not in snode_traffic:
-                    utilization = vn_traffic[1] / total_bw(bw_matrix)[item[0]]
-                else:
-                    utilization = (snode_traffic[item[0]] + vn_traffic[1]) / total_bw(bw_matrix)[item[0]]
-                    
-                # Link-Path selsection add-on
-                    
-                # End link-path block    
-                if selected_dict.values().count(item[0]) < limit:
-                    if utilization < threshold and w_m[2] >= 10*w_m[1]:
-                        if item[0] not in snode_traffic: 
-                            selected_dict[vnet.vnet_id] = item[0]
-                            snode_bw_list[item[0]] -= vn_traffic[1]
-                            snode_traffic[item[0]] = vn_traffic[1]
-                            break;
-                        else:
-                            min_id = find_min(sorted_x, bw_matrix, snode_traffic, vn_traffic[1]) 
-                            if min_id == item[0]:
-                                selected_dict[vnet.vnet_id] = item[0]
-                                snode_bw_list[item[0]] -= vn_traffic[1]
-                                snode_traffic[item[0]] = vn_traffic[1]
-                            #threshold = (threshold + 0.01)/2
-                                break
-                    elif utilization < threshold:
-                        selected_dict[vnet.vnet_id] = item[0]
-                        snode_bw_list[item[0]] -= vn_traffic[1]
-                        snode_traffic[item[0]] = vn_traffic[1]
-                        break
-                    else:
-                        print "does not satisfy the threshold"     
-                else:
-                    pass
-                           
-    return selected_dict   
+#                    if utilization < threshold and w_m[2] >= 10*w_m[1]:
+#                        if item[0] not in snode_traffic: 
+#                            selected_dict[vnet.vnet_id] = item[0]
+#                            snode_bw_list[item[0]] -= vn_traffic[1]
+#                            snode_traffic[item[0]] = vn_traffic[1]
+#                            break;
+#                        else:
+#                            min_id = find_min(sorted_x, bw_matrix, snode_traffic, vn_traffic[1]) 
+#                            if min_id == item[0]:
+#                                selected_dict[vnet.vnet_id] = item[0]
+#                                snode_bw_list[item[0]] -= vn_traffic[1]
+#                                snode_traffic[item[0]] = vn_traffic[1]
+#                            #threshold = (threshold + 0.01)/2
+#                                break
+#                    elif utilization < threshold:
+#                        selected_dict[vnet.vnet_id] = item[0]
+#                        snode_bw_list[item[0]] -= vn_traffic[1]
+#                        snode_traffic[item[0]] = vn_traffic[1]
+#                        break
+#                    else:
+#                        print "does not satisfy the threshold"     
+#                else:
+#                    pass
+#                           
+#    return selected_dict   
  
  
 def find_random(model,limit, w_a, w_b, w_m, demand_path, demand_dict, slink_dict):
@@ -529,70 +475,70 @@ def sort_vnet(model, option='traffic'):
     return sorted_vn
     
 
-def get_obj(model_old, w_a, w_b, theta, s_limit):
-    """
-    get the objective value based on the heuristic selection
-    """
-    
-    model = copy.deepcopy(model_old)
-    
-    #cpu_vector = model.cost_dict['cpu']
-    dist_matrix = model.cost_dict['dist']
-    rtt_matrix = model.cost_dict['rtt']
-    bw_matrix = model.cost_dict['bw']
-    w_a1, w_a2 = w_a
-    w_b1, w_b2 = w_b
-    theta1, theta2, theta3 = theta
-    
-    infeasible = 0
-
-    fail_nodes = model.failed_dict
-    start_time = time.time()
-    select_dict = find_standby(model, s_limit, w_a, w_b, theta)
-    #print "selection takes: ", time.time() - start_time
-    
-    sum_cost_1_2 = 0
-    r_list = {}
-   
-    for vnet in model.vnets:
-        j = vnet.vnet_id
-        f = fail_nodes[j]
-        # only count the failed virtual network
-        if f == -1:
-            pass
-        else:
-            if j in select_dict:
-                i = select_dict[j]
-                failed_node = vnet.vnodes[f]
-                vneighbors = failed_node.vneighbors
-                for k in vneighbors:                
-                    eta = operation_cost()
-                    #print "a1: ", w_a1, "a2: ", w_a2, "b1: ", w_b1, "b2: ", w_b2
-                    dist_c = dist_cost(i, f, k, dist_matrix, w_a1, w_a2)
-                    rtt_c = rtt_cost(i, k, rtt_matrix)
-                    sigma = connect_cost(dist_c, rtt_c, w_b1, w_b2)
-                    sum_cost_1_2 += theta1 * eta + theta2 * sigma
-                xi = resource_cost(bw_matrix, i)
-                req_bw = sum(failed_node.neighbor_traffic.values())
-                util = req_bw / xi
-                if i not in r_list:
-                    r_list[i] = util
-                else:
-                    r_list[i] += util
-                #print sigma, " v_" + str(vnet.vnet_id) + "_" + str(f) + "_" + str(i) + "_" + str(k) + "_" + str(k)
-            else:
-                print "INFEASIBLE at vnet: ", j
-                infeasible = 1
-    #print "DONE"
-    if infeasible == 0:
-        max_util = max(r_list.values())
-        obj = sum_cost_1_2 + theta3 * max_util
-    else:
-        obj = "infeasible"
-        max_util = "none"
-    #print obj
-    used_time = time.time() - start_time
-    return obj, select_dict, max_util, used_time
+#def get_obj(model_old, w_a, w_b, theta, s_limit):
+#    """
+#    get the objective value based on the heuristic selection
+#    """
+#    
+#    model = copy.deepcopy(model_old)
+#    
+#    #cpu_vector = model.cost_dict['cpu']
+#    dist_matrix = model.cost_dict['dist']
+#    rtt_matrix = model.cost_dict['rtt']
+#    bw_matrix = model.cost_dict['bw']
+#    w_a1, w_a2 = w_a
+#    w_b1, w_b2 = w_b
+#    theta1, theta2, theta3 = theta
+#    
+#    infeasible = 0
+#
+#    fail_nodes = model.failed_dict
+#    start_time = time.time()
+#    select_dict = find_standby(model, s_limit, w_a, w_b, theta)
+#    #print "selection takes: ", time.time() - start_time
+#    
+#    sum_cost_1_2 = 0
+#    r_list = {}
+#   
+#    for vnet in model.vnets:
+#        j = vnet.vnet_id
+#        f = fail_nodes[j]
+#        # only count the failed virtual network
+#        if f == -1:
+#            pass
+#        else:
+#            if j in select_dict:
+#                i = select_dict[j]
+#                failed_node = vnet.vnodes[f]
+#                vneighbors = failed_node.vneighbors
+#                for k in vneighbors:                
+#                    eta = operation_cost()
+#                    #print "a1: ", w_a1, "a2: ", w_a2, "b1: ", w_b1, "b2: ", w_b2
+#                    dist_c = dist_cost(i, f, k, dist_matrix, w_a1, w_a2)
+#                    rtt_c = rtt_cost(i, k, rtt_matrix)
+#                    sigma = connect_cost(dist_c, rtt_c, w_b1, w_b2)
+#                    sum_cost_1_2 += theta1 * eta + theta2 * sigma
+#                xi = resource_cost(bw_matrix, i)
+#                req_bw = sum(failed_node.neighbor_traffic.values())
+#                util = req_bw / xi
+#                if i not in r_list:
+#                    r_list[i] = util
+#                else:
+#                    r_list[i] += util
+#                #print sigma, " v_" + str(vnet.vnet_id) + "_" + str(f) + "_" + str(i) + "_" + str(k) + "_" + str(k)
+#            else:
+#                print "INFEASIBLE at vnet: ", j
+#                infeasible = 1
+#    #print "DONE"
+#    if infeasible == 0:
+#        max_util = max(r_list.values())
+#        obj = sum_cost_1_2 + theta3 * max_util
+#    else:
+#        obj = "infeasible"
+#        max_util = "none"
+#    #print obj
+#    used_time = time.time() - start_time
+#    return obj, select_dict, max_util, used_time
 
 
 def find_demand_id(demand_dict, vn_id, fvr_id, svr, nbr):
@@ -649,7 +595,7 @@ def get_obj_new(model_old, demand_path, slink_dict, demand_dict, w_a, w_b, theta
     theta1, theta2, theta3 = theta
     # find total capacity and used bw on substrate nodes
     node_port_list, used_bw_list = total_port(model)
-    
+    vnet_info = model.get_vnet_info()
     infeasible = 0
 
     fail_nodes = model.failed_dict
@@ -661,18 +607,23 @@ def get_obj_new(model_old, demand_path, slink_dict, demand_dict, w_a, w_b, theta
     #print "Selected", select_dict
     sum_cost_1_2 = 0
     r_list = {}
-    for node_id in range(0,len(node_port_list)):
-        r_list[node_id] = used_bw_list[node_id]/node_port_list[node_id]
+    
     
     for vnet in model.vnets:
         j = vnet.vnet_id
         f = fail_nodes[j]
         # only count the failed virtual network
+        
+            
+            
         if f == -1:
             pass
         else:
             if j in select_dict:
                 #print "FEASIBLE FOUND"
+                print vnet_info[j]['standby']
+                for node_id in vnet_info[j]['standby']:
+                    r_list[node_id] = used_bw_list[node_id]/node_port_list[node_id]
                 i = select_dict[j]
                 failed_node = vnet.vnodes[f]
                 vneighbors = failed_node.vneighbors
@@ -698,10 +649,10 @@ def get_obj_new(model_old, demand_path, slink_dict, demand_dict, w_a, w_b, theta
                 print "INFEASIBLE at vnet: ", j
                 infeasible = 1
     #print "DONE"
-    #print "r_list", r_list
+    print "r_list", r_list
     if infeasible == 0:
         max_util = max(r_list.values())
-        print max_util
+        #print max_util
         obj = sum_cost_1_2 + theta3 * max_util
     else:
         obj = "infeasible"
