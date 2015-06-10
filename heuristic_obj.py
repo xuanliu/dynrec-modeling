@@ -595,7 +595,7 @@ def get_obj_new(model_old, demand_path, slink_dict, demand_dict, w_a, w_b, theta
     theta1, theta2, theta3 = theta
     # find total capacity and used bw on substrate nodes
     node_port_list, used_bw_list = total_port(model)
-    print "CHECK POINT-1", used_bw_list, node_port_list
+    #print "CHECK POINT-1", used_bw_list, node_port_list
     vnet_info = model.get_vnet_info()
     infeasible = 0
 
@@ -611,7 +611,7 @@ def get_obj_new(model_old, demand_path, slink_dict, demand_dict, w_a, w_b, theta
     
     for node_id in range(0,len(used_bw_list)):
         r_list[node_id] = used_bw_list[node_id]/node_port_list[node_id]
-        print "INITIAL", r_list
+        #print "INITIAL", r_list
     svr_subset = {}
     for vnet in model.vnets:
         j = vnet.vnet_id
@@ -622,7 +622,7 @@ def get_obj_new(model_old, demand_path, slink_dict, demand_dict, w_a, w_b, theta
         else:
             for node_id in vnet_info[j]['standby']:
                 svr_subset[node_id] = r_list[node_id]
-            print "Subset SVR: ", svr_subset
+            #print "Subset SVR: ", svr_subset
                 
             if j in select_dict:
                 #print "FEASIBLE FOUND"
@@ -648,7 +648,7 @@ def get_obj_new(model_old, demand_path, slink_dict, demand_dict, w_a, w_b, theta
                     r_list[i] = util #+ used_bw_list[i]/node_port_list[i]
                 else:
                     r_list[i] += util
-                
+                svr_subset[i] = r_list[i]
                 #print sigma, " v_" + str(vnet.vnet_id) + "_" + str(f) + "_" + str(i) + "_" + str(k) + "_" + str(k)
             else:
                 print "INFEASIBLE at vnet: ", j
@@ -656,6 +656,7 @@ def get_obj_new(model_old, demand_path, slink_dict, demand_dict, w_a, w_b, theta
     #print "DONE"
     
     if infeasible == 0:
+        #print svr_subset
         max_util = max(svr_subset.values())
         obj = sum_cost_1_2 + theta3 * max_util
     else:
