@@ -595,6 +595,7 @@ def get_obj_new(model_old, demand_path, slink_dict, demand_dict, w_a, w_b, theta
     theta1, theta2, theta3 = theta
     # find total capacity and used bw on substrate nodes
     node_port_list, used_bw_list = total_port(model)
+    print "CHECK POINT-1", used_bw_list, node_port_list
     vnet_info = model.get_vnet_info()
     infeasible = 0
 
@@ -608,22 +609,24 @@ def get_obj_new(model_old, demand_path, slink_dict, demand_dict, w_a, w_b, theta
     sum_cost_1_2 = 0
     r_list = {}
     
-    
+    for node_id in range(0,len(used_bw_list)):
+        r_list[node_id] = used_bw_list[node_id]/node_port_list[node_id]
+        print "INITIAL", r_list
+    svr_subset = {}
     for vnet in model.vnets:
         j = vnet.vnet_id
         f = fail_nodes[j]
         # only count the failed virtual network
-        
-            
-            
         if f == -1:
             pass
         else:
+            for node_id in vnet_info[j]['standby']:
+                svr_subset[node_id] = r_list[node_id]
+            print "Subset SVR: ", svr_subset
+                
             if j in select_dict:
                 #print "FEASIBLE FOUND"
-                print vnet_info[j]['standby']
-                for node_id in vnet_info[j]['standby']:
-                    r_list[node_id] = used_bw_list[node_id]/node_port_list[node_id]
+                #print vnet_info[j]['standby']
                 i = select_dict[j]
                 failed_node = vnet.vnodes[f]
                 vneighbors = failed_node.vneighbors
@@ -640,19 +643,20 @@ def get_obj_new(model_old, demand_path, slink_dict, demand_dict, w_a, w_b, theta
                 #util = req_bw / xi
                 #print req_bw, i, used_bw_list[i], node_port_list[i]
                 util = req_bw/node_port_list[i]
+                
                 if i not in r_list:
                     r_list[i] = util #+ used_bw_list[i]/node_port_list[i]
                 else:
                     r_list[i] += util
+                
                 #print sigma, " v_" + str(vnet.vnet_id) + "_" + str(f) + "_" + str(i) + "_" + str(k) + "_" + str(k)
             else:
                 print "INFEASIBLE at vnet: ", j
                 infeasible = 1
     #print "DONE"
-    print "r_list", r_list
+    
     if infeasible == 0:
-        max_util = max(r_list.values())
-        #print max_util
+        max_util = max(svr_subset.values())
         obj = sum_cost_1_2 + theta3 * max_util
     else:
         obj = "infeasible"
